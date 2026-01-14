@@ -1,5 +1,7 @@
 package core
 
+type NodeId string
+
 type Node interface {
-	GetNodeId() string
+	GetNodeId() NodeId
 }
