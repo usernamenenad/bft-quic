@@ -10,10 +10,11 @@ import (
 )
 
 type Ibft struct {
-	node    IbftNode
-	state   *State
-	config  *Config
-	network core.Transport
+	node      IbftNode
+	state     *State
+	config    *Config
+	validator *Validator
+	network   core.Transport
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -36,6 +37,9 @@ func NewIbft(
 			Id: nodeId,
 		},
 		config: config,
+		validator: &Validator{
+			Config: *config,
+		},
 		logger: logger,
 	}
 }
@@ -43,7 +47,7 @@ func NewIbft(
 func (ibft *Ibft) Start(
 	ctx context.Context,
 	instance ConsensusInstance,
-	inputValue Value,
+	inputValue *Value,
 ) error {
 	ibft.ctx, ibft.cancel = context.WithCancel(ctx)
 	ibft.state = NewState(instance, inputValue)
@@ -74,15 +78,48 @@ func (ibft *Ibft) Stop() {
 	ibft.wg.Wait()
 }
 
-func (ibft *Ibft) handleMessage(msg *IbftMessage) {
+func (ibft *Ibft) handleMessage(msg *IbftMessage) error {
 	switch msg.MessageType {
 	case IbftMessageTypePrePrepare:
+		return ibft.handlePrePrepare(msg)
 	case IbftMessageTypePrepare:
+		return nil
 	case IbftMessageTypeCommit:
+		return nil
 	case IbftMessageTypeRoundChange:
+		return nil
 	default:
-		return
+		return nil
 	}
+}
+
+func (ibft *Ibft) handlePrePrepare(msg *IbftMessage) error {
+	ibft.state.mu.RLock()
+	currentRound := ibft.state.Round
+	instance := ibft.state.Instance
+	ibft.state.mu.RUnlock()
+
+	if msg.Round != currentRound {
+		return nil
+	}
+
+	leader := ibft.node.GetLeader(instance)
+	if msg.From != leader {
+		return fmt.Errorf("%s from a non-leader %s", IbftMessageTypePrePrepare.String(), msg.From)
+	}
+
+	if !ibft.validator.JustifyPrePrepare(msg) {
+		return fmt.Errorf("message did not pass justification")
+	}
+
+	ibft.logger.Info(
+		"received a valid message",
+		"type", IbftMessageTypePrePrepare.String(),
+		"round", msg.Round,
+		"value", msg.Value,
+	)
+
+	return nil
 }
 
 func (ibft *Ibft) startMessageListener() {

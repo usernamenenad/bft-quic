@@ -1,5 +1,7 @@
 package ibft
 
+import "github.com/usernamenenad/bft-quic/core"
+
 type IbftMessageType uint8
 
 const (
@@ -26,10 +28,14 @@ func (mt IbftMessageType) String() string {
 
 type IbftMessage struct {
 	MessageType IbftMessageType
+	From        core.NodeId
 	Instance    ConsensusInstance
 	Round       Round
-	Value       Value
+	Value       *Value
 
-	PreparedRound Round
-	PreparedValue Value
+	PreparedRound *Round
+	PreparedValue *Value
+
+	RoundChangeCert RoundChangeCert
+	PrepareCert     PrepareCert
 }

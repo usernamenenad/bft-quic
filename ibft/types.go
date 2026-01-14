@@ -39,3 +39,5 @@ func (v *Value) Equal(other *Value) bool {
 }
 
 type RoundChangeCert []*IbftMessage
+
+type PrepareCert []*IbftMessage

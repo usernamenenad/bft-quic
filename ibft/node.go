@@ -18,7 +18,11 @@ func (ibft *IbftNode) GetNodeId() core.NodeId {
 	return ibft.Id
 }
 
-// TODO: mechanism for determining a leader
 func (ibft *IbftNode) IsLeader(instance ConsensusInstance, round Round) bool {
-	return true
+	return ibft.Id == ibft.GetLeader(instance)
+}
+
+// TODO: mechanism for determining a leader
+func (ibft *IbftNode) GetLeader(instance ConsensusInstance) core.NodeId {
+	return ""
 }

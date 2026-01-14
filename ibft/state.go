@@ -7,13 +7,13 @@ type State struct {
 	Instance      ConsensusInstance
 	Round         Round
 	PreparedRound Round
-	PreparedValue Value
-	InputValue    Value
+	PreparedValue *Value
+	InputValue    *Value
 	Decided       bool
-	DecidedValue  Value
+	DecidedValue  *Value
 }
 
-func NewState(instance ConsensusInstance, inputValue Value) *State {
+func NewState(instance ConsensusInstance, inputValue *Value) *State {
 	return &State{
 		Instance:      instance,
 		Round:         1,
