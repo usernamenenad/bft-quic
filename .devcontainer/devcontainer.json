@@ -1,0 +1,27 @@
+{
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "golang.go",
+                "ms-azuretools.vscode-docker"
+            ],
+            "settings": {
+                "go.useLanguageServer": true,
+                "go.gopath": "/go",
+                "go.toolsManagement.autoUpdate": true,
+                "go.formatTool": "goimports",
+                "editor.formatOnSave": true
+            }
+        }
+    },
+    "workspaceFolder": "/workspace",
+    "mounts": [
+        "source=${localWorkspaceFolder},target=/workspace,type=bind"
+    ],
+    "postCreateCommand": "bash .devcontainer/postCreate.sh",
+    "remoteUser": "root",
+    "features": {}
+}
