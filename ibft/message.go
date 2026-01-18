@@ -2,39 +2,39 @@ package ibft
 
 import "github.com/usernamenenad/bft-quic/core"
 
-type IbftMessageType uint8
+type MessageType uint8
 
 const (
-	IbftMessageTypePrePrepare IbftMessageType = iota
-	IbftMessageTypePrepare
-	IbftMessageTypeCommit
-	IbftMessageTypeRoundChange
+	MessageTypePrePrepare MessageType = iota
+	MessageTypePrepare
+	MessageTypeCommit
+	MessageTypeRoundChange
 )
 
-func (mt IbftMessageType) String() string {
+func (mt MessageType) String() string {
 	switch mt {
-	case IbftMessageTypePrePrepare:
+	case MessageTypePrePrepare:
 		return "PRE-PREPARE"
-	case IbftMessageTypePrepare:
+	case MessageTypePrepare:
 		return "PREPARE"
-	case IbftMessageTypeCommit:
+	case MessageTypeCommit:
 		return "COMMIT"
-	case IbftMessageTypeRoundChange:
+	case MessageTypeRoundChange:
 		return "ROUND-CHANGE"
 	default:
 		return "UNKNOWN"
 	}
 }
 
-type IbftMessage struct {
-	MessageType IbftMessageType
+type Message struct {
+	MessageType MessageType
 	From        core.NodeId
 	Instance    core.Instance
 	Round       core.Round
-	Value       *Value
+	Value       core.Value
 
 	PreparedRound *core.Round
-	PreparedValue *Value
+	PreparedValue core.Value
 
 	RoundChangeCert RoundChangeCert
 	PrepareCert     PrepareCert

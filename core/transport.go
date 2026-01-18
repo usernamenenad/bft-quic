@@ -4,6 +4,7 @@ import "context"
 
 type Message interface{}
 
+// Represents a general transport interface for BFT algorithms
 type Transport interface {
 	Broadcast(ctx context.Context, msg Message) error
 

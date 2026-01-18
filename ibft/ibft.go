@@ -10,7 +10,7 @@ import (
 )
 
 type Ibft struct {
-	node      Node
+	nodeData  Node
 	state     *State
 	config    *Config
 	validator *Validator
@@ -33,8 +33,8 @@ func NewIbft(
 	}
 
 	return &Ibft{
-		node:   *NewNode(nodeId),
-		config: config,
+		nodeData: *NewNode(nodeId),
+		config:   config,
 		validator: &Validator{
 			Config: *config,
 		},
@@ -45,7 +45,7 @@ func NewIbft(
 func (ibft *Ibft) Start(
 	ctx context.Context,
 	instance core.Instance,
-	inputValue *Value,
+	inputValue core.Value,
 ) error {
 	ibft.ctx, ibft.cancel = context.WithCancel(ctx)
 	ibft.state = NewState(instance, inputValue)
@@ -53,15 +53,15 @@ func (ibft *Ibft) Start(
 	ibft.wg.Add(1)
 	go ibft.startMessageListener()
 
-	if ibft.node.IsLeader(instance, 1) {
-		msg := &IbftMessage{
-			MessageType: IbftMessageTypePrePrepare,
+	if ibft.nodeData.IsLeader(instance, 1) {
+		msg := &Message{
+			MessageType: MessageTypePrePrepare,
 			Instance:    instance,
 			Round:       ibft.state.Round,
 			Value:       inputValue,
 		}
 		if err := ibft.network.Broadcast(ctx, msg); err != nil {
-			return fmt.Errorf("failed to broadcast %s: %w", IbftMessageTypePrePrepare.String(), err)
+			return fmt.Errorf("failed to broadcast %s: %w", MessageTypePrePrepare.String(), err)
 		}
 	}
 
@@ -76,22 +76,22 @@ func (ibft *Ibft) Stop() {
 	ibft.wg.Wait()
 }
 
-func (ibft *Ibft) handleMessage(msg *IbftMessage) error {
+func (ibft *Ibft) handleMessage(msg *Message) error {
 	switch msg.MessageType {
-	case IbftMessageTypePrePrepare:
+	case MessageTypePrePrepare:
 		return ibft.handlePrePrepare(msg)
-	case IbftMessageTypePrepare:
+	case MessageTypePrepare:
 		return nil
-	case IbftMessageTypeCommit:
+	case MessageTypeCommit:
 		return nil
-	case IbftMessageTypeRoundChange:
+	case MessageTypeRoundChange:
 		return nil
 	default:
 		return nil
 	}
 }
 
-func (ibft *Ibft) handlePrePrepare(msg *IbftMessage) error {
+func (ibft *Ibft) handlePrePrepare(msg *Message) error {
 	ibft.state.mu.RLock()
 	currentRound := ibft.state.Round
 	instance := ibft.state.Instance
@@ -101,9 +101,9 @@ func (ibft *Ibft) handlePrePrepare(msg *IbftMessage) error {
 		return nil
 	}
 
-	leader := ibft.node.GetLeader(instance)
+	leader := ibft.nodeData.GetLeader(instance)
 	if msg.From != leader {
-		return fmt.Errorf("%s from a non-leader %s", IbftMessageTypePrePrepare.String(), msg.From)
+		return fmt.Errorf("%s from a non-leader %s", MessageTypePrePrepare.String(), msg.From)
 	}
 
 	if !ibft.validator.JustifyPrePrepare(msg) {
@@ -112,7 +112,7 @@ func (ibft *Ibft) handlePrePrepare(msg *IbftMessage) error {
 
 	ibft.logger.Info(
 		"received a valid message",
-		"type", IbftMessageTypePrePrepare.String(),
+		"type", MessageTypePrePrepare.String(),
 		"round", msg.Round,
 		"value", msg.Value,
 	)
@@ -133,7 +133,7 @@ func (ibft *Ibft) startMessageListener() {
 				return
 			}
 
-			ibftMsg, ok := msg.(*IbftMessage)
+			ibftMsg, ok := msg.(*Message)
 			if !ok {
 				ibft.logger.Error("received message of unexpected type", "type", fmt.Sprintf("%T", msg))
 				continue

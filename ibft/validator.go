@@ -8,9 +8,9 @@ type Validator struct {
 	Config Config
 }
 
-func (v *Validator) HighestPrepared(messages []*IbftMessage) (*core.Round, *Value) {
+func (v *Validator) HighestPrepared(messages []*Message) (*core.Round, core.Value) {
 	var highestRound *core.Round = nil
-	var highestValue *Value = nil
+	var highestValue core.Value = nil
 
 	for _, msg := range messages {
 		if msg.PreparedRound == nil {
@@ -27,8 +27,8 @@ func (v *Validator) HighestPrepared(messages []*IbftMessage) (*core.Round, *Valu
 }
 
 // Verifies that the PRE-PREPARE message is justified
-func (v *Validator) JustifyPrePrepare(msg *IbftMessage) bool {
-	if msg.MessageType != IbftMessageTypePrePrepare {
+func (v *Validator) JustifyPrePrepare(msg *Message) bool {
+	if msg.MessageType != MessageTypePrePrepare {
 		return false
 	}
 
@@ -55,14 +55,14 @@ func (v *Validator) JustifyPrePrepare(msg *IbftMessage) bool {
 func (v *Validator) JustifyRoundChange(
 	roundChangeMsgs RoundChangeCert,
 	round core.Round,
-	proposedValue *Value,
+	proposedValue core.Value,
 ) bool {
 	if len(roundChangeMsgs) < int(v.Config.QuorumSize()) {
 		return false
 	}
 
 	for _, rcMsg := range roundChangeMsgs {
-		if rcMsg.MessageType != IbftMessageTypeRoundChange || rcMsg.Round != round {
+		if rcMsg.MessageType != MessageTypeRoundChange || rcMsg.Round != round {
 			return false
 		}
 	}
@@ -84,7 +84,7 @@ func (v *Validator) JustifyRoundChange(
 		}
 
 		for _, prepMsg := range rcMsg.PrepareCert {
-			if prepMsg.MessageType != IbftMessageTypePrepare {
+			if prepMsg.MessageType != MessageTypePrepare {
 				continue
 			}
 			if prepMsg.Round != *highestRound {

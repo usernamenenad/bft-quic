@@ -1,5 +1,5 @@
 package ibft
 
-type RoundChangeCert []*IbftMessage
+type RoundChangeCert []*Message
 
-type PrepareCert []*IbftMessage
+type PrepareCert []*Message

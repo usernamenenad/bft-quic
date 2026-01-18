@@ -11,13 +11,13 @@ type State struct {
 	Instance      core.Instance
 	Round         core.Round
 	PreparedRound core.Round
-	PreparedValue *Value
-	InputValue    *Value
+	PreparedValue core.Value
+	InputValue    core.Value
 	Decided       bool
-	DecidedValue  *Value
+	DecidedValue  core.Value
 }
 
-func NewState(instance core.Instance, inputValue *Value) *State {
+func NewState(instance core.Instance, inputValue core.Value) *State {
 	return &State{
 		Instance:      instance,
 		Round:         1,

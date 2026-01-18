@@ -3,6 +3,8 @@ package ibft
 import (
 	"crypto/sha256"
 	"encoding/hex"
+
+	"github.com/usernamenenad/bft-quic/core"
 )
 
 type Value struct {
@@ -22,14 +24,19 @@ func (v *Value) Hash() string {
 	return hex.EncodeToString(h[:])
 }
 
-func (v *Value) Equal(other *Value) bool {
-	if v.IsNil() && other.IsNil() {
-		return true
-	}
-
-	if v.IsNil() || other.IsNil() {
+func (v *Value) Equal(other core.Value) bool {
+	o, ok := other.(*Value)
+	if !ok {
 		return false
 	}
 
-	return v.Hash() == other.Hash()
+	if v.IsNil() && o.IsNil() {
+		return true
+	}
+
+	if v.IsNil() || o.IsNil() {
+		return false
+	}
+
+	return v.Hash() == o.Hash()
 }
