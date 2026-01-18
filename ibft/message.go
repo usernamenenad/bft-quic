@@ -29,11 +29,11 @@ func (mt IbftMessageType) String() string {
 type IbftMessage struct {
 	MessageType IbftMessageType
 	From        core.NodeId
-	Instance    ConsensusInstance
-	Round       Round
+	Instance    core.Instance
+	Round       core.Round
 	Value       *Value
 
-	PreparedRound *Round
+	PreparedRound *core.Round
 	PreparedValue *Value
 
 	RoundChangeCert RoundChangeCert

@@ -32,7 +32,7 @@ func TestValidator(t *testing.T) {
 		})
 
 		t.Run("single prepared message", func(t *testing.T) {
-			expectedRound := ibft.Round(2)
+			expectedRound := core.Round(2)
 			expectedValue := &ibft.Value{Data: []byte("test")}
 			messages := []*ibft.IbftMessage{
 				{PreparedRound: &expectedRound, PreparedValue: expectedValue},
@@ -46,9 +46,9 @@ func TestValidator(t *testing.T) {
 		})
 
 		t.Run("multiple prepared messages", func(t *testing.T) {
-			round1 := ibft.Round(1)
-			round2 := ibft.Round(3)
-			round3 := ibft.Round(2)
+			round1 := core.Round(1)
+			round2 := core.Round(3)
+			round3 := core.Round(2)
 			value1 := &ibft.Value{Data: []byte("value1")}
 			value2 := &ibft.Value{Data: []byte("value2")}
 			value3 := &ibft.Value{Data: []byte("value3")}
@@ -172,7 +172,7 @@ func TestValidator(t *testing.T) {
 		})
 
 		t.Run("J2: proposed value doesn't match highest", func(t *testing.T) {
-			preparedRound := ibft.Round(1)
+			preparedRound := core.Round(1)
 			preparedValue := &ibft.Value{Data: []byte("prepared")}
 			proposedValue := &ibft.Value{Data: []byte("different")}
 
@@ -193,7 +193,7 @@ func TestValidator(t *testing.T) {
 		})
 
 		t.Run("J2: valid with quorum of prepare messages", func(t *testing.T) {
-			preparedRound := ibft.Round(1)
+			preparedRound := core.Round(1)
 			preparedValue := &ibft.Value{Data: []byte("prepared")}
 
 			prepareCert := []*ibft.IbftMessage{

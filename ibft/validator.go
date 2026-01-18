@@ -8,8 +8,8 @@ type Validator struct {
 	Config Config
 }
 
-func (v *Validator) HighestPrepared(messages []*IbftMessage) (*Round, *Value) {
-	var highestRound *Round = nil
+func (v *Validator) HighestPrepared(messages []*IbftMessage) (*core.Round, *Value) {
+	var highestRound *core.Round = nil
 	var highestValue *Value = nil
 
 	for _, msg := range messages {
@@ -54,7 +54,7 @@ func (v *Validator) JustifyPrePrepare(msg *IbftMessage) bool {
 // - J2:  There exists a quorum of PREPARE messages for the highest prepared value
 func (v *Validator) JustifyRoundChange(
 	roundChangeMsgs RoundChangeCert,
-	round Round,
+	round core.Round,
 	proposedValue *Value,
 ) bool {
 	if len(roundChangeMsgs) < int(v.Config.QuorumSize()) {

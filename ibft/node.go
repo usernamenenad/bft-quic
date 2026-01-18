@@ -4,25 +4,25 @@ import (
 	"github.com/usernamenenad/bft-quic/core"
 )
 
-type IbftNode struct {
+type Node struct {
 	Id core.NodeId
 }
 
-func NewIbftNode(nodeId core.NodeId) *IbftNode {
-	return &IbftNode{
+func NewNode(nodeId core.NodeId) *Node {
+	return &Node{
 		Id: nodeId,
 	}
 }
 
-func (ibft *IbftNode) GetNodeId() core.NodeId {
+func (ibft *Node) GetNodeId() core.NodeId {
 	return ibft.Id
 }
 
-func (ibft *IbftNode) IsLeader(instance ConsensusInstance, round Round) bool {
+func (ibft *Node) IsLeader(instance core.Instance, round core.Round) bool {
 	return ibft.Id == ibft.GetLeader(instance)
 }
 
 // TODO: mechanism for determining a leader
-func (ibft *IbftNode) GetLeader(instance ConsensusInstance) core.NodeId {
+func (ibft *Node) GetLeader(instance core.Instance) core.NodeId {
 	return ""
 }

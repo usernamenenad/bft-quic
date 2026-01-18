@@ -10,7 +10,7 @@ import (
 )
 
 type Ibft struct {
-	node      IbftNode
+	node      Node
 	state     *State
 	config    *Config
 	validator *Validator
@@ -33,9 +33,7 @@ func NewIbft(
 	}
 
 	return &Ibft{
-		node: IbftNode{
-			Id: nodeId,
-		},
+		node:   *NewNode(nodeId),
 		config: config,
 		validator: &Validator{
 			Config: *config,
@@ -46,7 +44,7 @@ func NewIbft(
 
 func (ibft *Ibft) Start(
 	ctx context.Context,
-	instance ConsensusInstance,
+	instance core.Instance,
 	inputValue *Value,
 ) error {
 	ibft.ctx, ibft.cancel = context.WithCancel(ctx)

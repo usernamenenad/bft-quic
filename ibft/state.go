@@ -1,19 +1,23 @@
 package ibft
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/usernamenenad/bft-quic/core"
+)
 
 type State struct {
 	mu            sync.RWMutex
-	Instance      ConsensusInstance
-	Round         Round
-	PreparedRound Round
+	Instance      core.Instance
+	Round         core.Round
+	PreparedRound core.Round
 	PreparedValue *Value
 	InputValue    *Value
 	Decided       bool
 	DecidedValue  *Value
 }
 
-func NewState(instance ConsensusInstance, inputValue *Value) *State {
+func NewState(instance core.Instance, inputValue *Value) *State {
 	return &State{
 		Instance:      instance,
 		Round:         1,
