@@ -10,11 +10,14 @@ import (
 )
 
 type Ibft struct {
-	nodeData  Node
+	nodeData Node
+
 	state     *State
 	config    *Config
 	validator *Validator
 	network   core.Transport
+	store     core.Store
+	timer     *Timer
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -26,6 +29,8 @@ type Ibft struct {
 func NewIbft(
 	nodeId core.NodeId,
 	config *Config,
+	network core.Transport,
+	store core.Store,
 	logger *slog.Logger,
 ) *Ibft {
 	if logger == nil {
@@ -33,12 +38,13 @@ func NewIbft(
 	}
 
 	return &Ibft{
-		nodeData: *NewNode(nodeId),
-		config:   config,
-		validator: &Validator{
-			Config: *config,
-		},
-		logger: logger,
+		nodeData:  *NewNode(nodeId),
+		config:    config,
+		validator: NewValidator(config),
+		network:   network,
+		store:     store,
+		logger:    logger,
+		timer:     NewTimer(),
 	}
 }
 
@@ -51,19 +57,29 @@ func (ibft *Ibft) Start(
 	ibft.state = NewState(instance, inputValue)
 
 	ibft.wg.Add(1)
-	go ibft.startMessageListener()
+	go ibft.startMessageHandler()
+
+	ibft.wg.Add(1)
+	go ibft.startTimerHandler()
 
 	if ibft.nodeData.IsLeader(instance, 1) {
 		msg := &Message{
 			MessageType: MessageTypePrePrepare,
 			Instance:    instance,
-			Round:       ibft.state.Round,
+			Round:       1,
 			Value:       inputValue,
 		}
 		if err := ibft.network.Broadcast(ctx, msg); err != nil {
 			return fmt.Errorf("failed to broadcast %s: %w", MessageTypePrePrepare.String(), err)
 		}
 	}
+
+	// start timer
+	ibft.timer.Start(
+		ibft.ctx,
+		ibft.state.Round,
+		ibft.config.Timeout(1),
+	)
 
 	return nil
 }
@@ -89,6 +105,58 @@ func (ibft *Ibft) handleMessage(msg *Message) error {
 	default:
 		return nil
 	}
+}
+
+func (ibft *Ibft) onTimerExpired(expiredRound core.Round) {
+	ibft.state.mu.Lock()
+	defer ibft.state.mu.Unlock()
+
+	if expiredRound != ibft.state.Round {
+		return
+	}
+
+	// increment round
+	ibft.state.Round = expiredRound + 1
+
+	// set timer expiry based on incremented round
+	ibft.timer.Start(
+		ibft.ctx,
+		expiredRound+1,
+		ibft.config.Timeout(expiredRound+1),
+	)
+
+	var prepareCert []*Message
+
+	prepareMsgs, err := ibft.store.GetMessagesByKey("")
+	if err != nil {
+		prepareCert = make([]*Message, 0)
+	} else {
+		// TODO: see if there's a better way for this
+		for _, msg := range prepareMsgs {
+			prepareMsg, ok := msg.(*Message)
+			if !ok {
+				continue
+			}
+			prepareCert = append(prepareCert, prepareMsg)
+		}
+	}
+
+	// send ROUND-CHANGE request
+	roundChangeMsg := &Message{
+		MessageType: MessageTypeRoundChange,
+		PrepareCert: prepareCert,
+	}
+
+	go func() {
+		if err := ibft.network.Broadcast(ibft.ctx, roundChangeMsg); err != nil {
+			ibft.logger.Error(
+				"error broadcasting ROUND-CHANGE:",
+				"nodeId", ibft.nodeData.Id,
+				"error", err,
+			)
+		}
+	}()
+
 }
 
 func (ibft *Ibft) handlePrePrepare(msg *Message) error {
@@ -117,13 +185,38 @@ func (ibft *Ibft) handlePrePrepare(msg *Message) error {
 		"value", msg.Value,
 	)
 
+	prepareMsg := &Message{
+		MessageType: MessageTypePrepare,
+		Instance:    msg.Instance,
+		Round:       msg.Round,
+		Value:       msg.Value,
+	}
+	ibft.store.AddMessage(prepareMsg)
+	go func() {
+		if err := ibft.network.Broadcast(ibft.ctx, prepareMsg); err != nil {
+			ibft.logger.Error(
+				"error broadcasting PREPARE:",
+				"nodeId", ibft.nodeData.Id,
+				"error", err,
+			)
+		}
+	}()
+
+	// reset timer by starting again
+	ibft.timer.Start(
+		ibft.ctx,
+		msg.Round,
+		ibft.config.Timeout(msg.Round),
+	)
+
 	return nil
 }
 
-func (ibft *Ibft) startMessageListener() {
+func (ibft *Ibft) startMessageHandler() {
 	defer ibft.wg.Done()
 
 	ibft.logger.Info("start listening on messages")
+
 	for {
 		select {
 		case <-ibft.ctx.Done():
@@ -139,6 +232,22 @@ func (ibft *Ibft) startMessageListener() {
 				continue
 			}
 			ibft.handleMessage(ibftMsg)
+		}
+	}
+}
+
+func (ibft *Ibft) startTimerHandler() {
+	defer ibft.wg.Done()
+
+	ibft.logger.Debug("start timer handler")
+
+	for {
+		select {
+		case <-ibft.ctx.Done():
+			return
+		case round := <-ibft.timer.GetExpiryChan():
+			ibft.logger.Warn("timer expired!")
+			ibft.onTimerExpired(round)
 		}
 	}
 }

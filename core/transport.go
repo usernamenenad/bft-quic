@@ -8,7 +8,7 @@ type Message interface{}
 type Transport interface {
 	Broadcast(ctx context.Context, msg Message) error
 
-	Send(ctx context.Context, nodeId NodeId, msg Message)
+	Send(ctx context.Context, nodeId NodeId, msg Message) error
 
 	Subscribe() <-chan Message
 }

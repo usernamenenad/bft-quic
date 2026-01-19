@@ -11,6 +11,12 @@ type Value struct {
 	Data []byte
 }
 
+func NewValue(data []byte) *Value {
+	return &Value{
+		Data: data,
+	}
+}
+
 func (v *Value) IsNil() bool {
 	return v == nil || len(v.Data) == 0
 }

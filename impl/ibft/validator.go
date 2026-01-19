@@ -5,7 +5,13 @@ import (
 )
 
 type Validator struct {
-	Config Config
+	Config *Config
+}
+
+func NewValidator(config *Config) *Validator {
+	return &Validator{
+		Config: config,
+	}
 }
 
 func (v *Validator) HighestPrepared(messages []*Message) (*core.Round, core.Value) {

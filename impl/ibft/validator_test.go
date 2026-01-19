@@ -2,14 +2,17 @@ package ibft_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/usernamenenad/bft-quic/core"
-	"github.com/usernamenenad/bft-quic/ibft"
+	"github.com/usernamenenad/bft-quic/impl/ibft"
 )
 
 func TestValidator(t *testing.T) {
-	config := &ibft.Config{N: 5}
-	validator := &ibft.Validator{Config: *config}
+	config := ibft.NewConfig(5, func(r core.Round) time.Duration {
+		return 0
+	})
+	validator := ibft.NewValidator(config)
 
 	t.Run("HighestPrepared", func(t *testing.T) {
 		t.Run("empty messages", func(t *testing.T) {
@@ -33,7 +36,7 @@ func TestValidator(t *testing.T) {
 
 		t.Run("single prepared message", func(t *testing.T) {
 			expectedRound := core.Round(2)
-			expectedValue := &ibft.Value{Data: []byte("test")}
+			expectedValue := ibft.NewValue([]byte("test"))
 			messages := []*ibft.Message{
 				{PreparedRound: &expectedRound, PreparedValue: expectedValue},
 				{PreparedRound: nil, PreparedValue: nil},
@@ -49,9 +52,9 @@ func TestValidator(t *testing.T) {
 			round1 := core.Round(1)
 			round2 := core.Round(3)
 			round3 := core.Round(2)
-			value1 := &ibft.Value{Data: []byte("value1")}
-			value2 := &ibft.Value{Data: []byte("value2")}
-			value3 := &ibft.Value{Data: []byte("value3")}
+			value1 := ibft.NewValue([]byte("value1"))
+			value2 := ibft.NewValue([]byte("value2"))
+			value3 := ibft.NewValue([]byte("value3"))
 			messages := []*ibft.Message{
 				{PreparedRound: &round1, PreparedValue: value1},
 				{PreparedRound: &round2, PreparedValue: value2}, // highest
@@ -106,7 +109,7 @@ func TestValidator(t *testing.T) {
 		})
 
 		t.Run("valid ROUND-CHANGE cert", func(t *testing.T) {
-			value := &ibft.Value{Data: []byte("test")}
+			value := ibft.NewValue([]byte("test"))
 			roundChangeCert := make(ibft.RoundChangeCert, 3)
 			for i := range roundChangeCert {
 				roundChangeCert[i] = &ibft.Message{
@@ -173,8 +176,8 @@ func TestValidator(t *testing.T) {
 
 		t.Run("J2: proposed value doesn't match highest", func(t *testing.T) {
 			preparedRound := core.Round(1)
-			preparedValue := &ibft.Value{Data: []byte("prepared")}
-			proposedValue := &ibft.Value{Data: []byte("different")}
+			preparedValue := ibft.NewValue([]byte("prepared"))
+			proposedValue := ibft.NewValue([]byte("different"))
 
 			roundChangeMsgs := []*ibft.Message{
 				{
@@ -194,7 +197,7 @@ func TestValidator(t *testing.T) {
 
 		t.Run("J2: valid with quorum of prepare messages", func(t *testing.T) {
 			preparedRound := core.Round(1)
-			preparedValue := &ibft.Value{Data: []byte("prepared")}
+			preparedValue := ibft.NewValue([]byte("prepared"))
 
 			prepareCert := []*ibft.Message{
 				{
