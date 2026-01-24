@@ -7,14 +7,15 @@ import (
 )
 
 type State struct {
-	mu            sync.RWMutex
-	Instance      core.Instance
-	Round         core.Round
-	PreparedRound core.Round
-	PreparedValue core.Value
-	InputValue    core.Value
-	Decided       bool
-	DecidedValue  core.Value
+	mu                   sync.RWMutex
+	Instance             core.Instance
+	Round                core.Round
+	PreparedRound        core.Round
+	PreparedValue        core.Value
+	InputValue           core.Value
+	Decided              bool
+	PrepareQuorumReached bool
+	DecidedValue         core.Value
 }
 
 func NewState(instance core.Instance, inputValue core.Value) *State {

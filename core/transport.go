@@ -11,4 +11,6 @@ type Transport interface {
 	Send(ctx context.Context, nodeId NodeId, msg Message) error
 
 	Subscribe() <-chan Message
+
+	WaitForReady()
 }
