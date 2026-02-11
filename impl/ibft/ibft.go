@@ -23,6 +23,7 @@ type Ibft struct {
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 
+	doneCh chan struct{}
 	logger *slog.Logger
 }
 
@@ -38,14 +39,19 @@ func NewIbft(
 	}
 
 	return &Ibft{
-		nodeData:  *NewNode(nodeId),
+		nodeData:  *NewNode(nodeId, config.Validators),
 		config:    config,
 		validator: NewValidator(config),
 		network:   network,
 		store:     store,
 		logger:    logger,
 		timer:     NewTimer(),
+		doneCh:    make(chan struct{}),
 	}
+}
+
+func (ibft *Ibft) Done() <-chan struct{} {
+	return ibft.doneCh
 }
 
 func (ibft *Ibft) Start(
@@ -106,7 +112,7 @@ func (ibft *Ibft) handleMessage(msg *Message) error {
 	case MessageTypeCommit:
 		return ibft.handleCommit(msg)
 	case MessageTypeRoundChange:
-		return nil
+		return ibft.handleRoundChange(msg)
 	default:
 		return nil
 	}
@@ -120,8 +126,10 @@ func (ibft *Ibft) onTimerExpired(expiredRound core.Round) {
 		return
 	}
 
-	// increment round
+	// increment round and reset state flags
 	ibft.state.Round = expiredRound + 1
+	ibft.state.PrepareQuorumReached = false
+	ibft.state.RoundChangeQuorumReached = false
 
 	// set timer expiry based on incremented round
 	ibft.timer.Start(
@@ -130,12 +138,9 @@ func (ibft *Ibft) onTimerExpired(expiredRound core.Round) {
 		ibft.config.Timeout(expiredRound+1),
 	)
 
-	// send ROUND-CHANGE request
-	roundChangeMsg := &Message{
-		MessageType: MessageTypeRoundChange,
-		From:        ibft.nodeData.GetNodeId(),
-		Round:       ibft.state.Round,
-	}
+	// build ROUND-CHANGE with prepared info
+	roundChangeMsg := ibft.buildRoundChangeMessage(ibft.state.Round)
+
 	go func() {
 		if err := ibft.network.Broadcast(ibft.ctx, roundChangeMsg); err != nil {
 			ibft.logger.Error(
@@ -160,7 +165,7 @@ func (ibft *Ibft) handlePrePrepare(msg *Message) error {
 		return nil
 	}
 
-	leader := ibft.nodeData.GetLeader(instance)
+	leader := ibft.nodeData.GetLeader(instance, msg.Round)
 	if msg.From != leader {
 		return fmt.Errorf("%s from a non-leader %s", MessageTypePrePrepare.String(), msg.From)
 	}
@@ -233,6 +238,9 @@ func (ibft *Ibft) handlePrepare(msg *Message) error {
 	commitMsg := &Message{
 		MessageType:   MessageTypeCommit,
 		From:          ibft.nodeData.GetNodeId(),
+		Instance:      msg.Instance,
+		Round:         msg.Round,
+		Value:         msg.Value,
 		PreparedRound: &msg.Round,
 		PreparedValue: msg.Value,
 	}
@@ -254,12 +262,12 @@ func (ibft *Ibft) handlePrepare(msg *Message) error {
 }
 
 func (ibft *Ibft) handleCommit(msg *Message) error {
-	ibft.state.mu.RLock()
+	ibft.state.mu.Lock()
+	defer ibft.state.mu.Unlock()
+
 	if ibft.state.Decided {
-		ibft.state.mu.RUnlock()
-		return nil // already decided!
+		return nil
 	}
-	ibft.state.mu.RUnlock()
 
 	// add COMMIT message to store, assuming it is valid
 	if err := ibft.store.AddMessage(msg); err != nil {
@@ -267,12 +275,9 @@ func (ibft *Ibft) handleCommit(msg *Message) error {
 	}
 
 	// check if we have a quorum of COMMIT messages
-	// if we do, set prepared values and broadcast decisio
-
-	key := string(msg.Instance) + "-" + fmt.Sprint(msg.Round) + "-" + MessageTypeCommit.String() // COMMIT key
+	key := string(msg.Instance) + "-" + fmt.Sprint(msg.Round) + "-" + MessageTypeCommit.String()
 	commitMsgs, err := ibft.store.GetMessagesByKey(key)
 	if err != nil {
-		// error when fetching messages, abort handling
 		return nil
 	}
 
@@ -284,16 +289,135 @@ func (ibft *Ibft) handleCommit(msg *Message) error {
 		return nil
 	}
 
-	ibft.state.mu.Lock()
 	ibft.state.Decided = true
-	ibft.state.mu.Unlock()
+	ibft.state.DecidedValue = msg.Value
 
 	ibft.logger.Info(
 		"decided!",
 		"id", ibft.nodeData.GetNodeId(),
-		"count",
-		fmt.Sprint(len(commitMsgs)),
+		"count", fmt.Sprint(len(commitMsgs)),
 	)
+
+	close(ibft.doneCh)
+
+	return nil
+}
+
+// buildPrepareCert returns the prepare certificate from stored messages.
+// Must be called with state.mu held.
+func (ibft *Ibft) buildPrepareCert() PrepareCert {
+	if ibft.state.PreparedValue == nil {
+		return nil
+	}
+	key := string(ibft.state.Instance) + "-" + fmt.Sprint(ibft.state.PreparedRound) + "-" + MessageTypePrepare.String()
+	prepareMsgs, err := ibft.store.GetMessagesByKey(key)
+	if err != nil || len(prepareMsgs) == 0 {
+		return nil
+	}
+	cert := make(PrepareCert, len(prepareMsgs))
+	for i, m := range prepareMsgs {
+		cert[i] = m.(*Message)
+	}
+	return cert
+}
+
+// buildRoundChangeMessage creates a ROUND-CHANGE message with the current prepared state.
+// Must be called with state.mu held.
+func (ibft *Ibft) buildRoundChangeMessage(round core.Round) *Message {
+	var preparedRound *core.Round
+	if ibft.state.PreparedValue != nil {
+		pr := ibft.state.PreparedRound
+		preparedRound = &pr
+	}
+	return &Message{
+		MessageType:   MessageTypeRoundChange,
+		From:          ibft.nodeData.GetNodeId(),
+		Instance:      ibft.state.Instance,
+		Round:         round,
+		PreparedRound: preparedRound,
+		PreparedValue: ibft.state.PreparedValue,
+		PrepareCert:   ibft.buildPrepareCert(),
+	}
+}
+
+func (ibft *Ibft) handleRoundChange(msg *Message) error {
+	if err := ibft.store.AddMessage(msg); err != nil {
+		ibft.logger.Warn("message not added to ROUND-CHANGE log")
+		return err
+	}
+
+	ibft.state.mu.Lock()
+	defer ibft.state.mu.Unlock()
+
+	if ibft.state.Decided {
+		return nil
+	}
+
+	key := string(msg.Instance) + "-" + fmt.Sprint(msg.Round) + "-" + MessageTypeRoundChange.String()
+	roundChangeMsgs, err := ibft.store.GetMessagesByKey(key)
+	if err != nil {
+		return nil
+	}
+
+	// f+1 rule: jump to round r if f+1 ROUND-CHANGE for r > current round
+	if msg.Round > ibft.state.Round && len(roundChangeMsgs) >= int(ibft.config.F()+1) {
+		ibft.state.Round = msg.Round
+		ibft.state.PrepareQuorumReached = false
+		ibft.state.RoundChangeQuorumReached = false
+
+		ibft.timer.Start(ibft.ctx, msg.Round, ibft.config.Timeout(msg.Round))
+
+		roundChangeMsg := ibft.buildRoundChangeMessage(msg.Round)
+		go func() {
+			if err := ibft.network.Broadcast(ibft.ctx, roundChangeMsg); err != nil {
+				ibft.logger.Error(
+					"error broadcasting ROUND-CHANGE:",
+					"nodeId", ibft.nodeData.id,
+					"error", err,
+				)
+			}
+		}()
+	}
+
+	// Quorum rule: if quorum of ROUND-CHANGE for current round and we're leader, propose
+	if msg.Round == ibft.state.Round && !ibft.state.RoundChangeQuorumReached &&
+		len(roundChangeMsgs) >= int(ibft.config.QuorumSize()) &&
+		ibft.nodeData.IsLeader(ibft.state.Instance, msg.Round) {
+
+		ibft.state.RoundChangeQuorumReached = true
+
+		rcCert := make(RoundChangeCert, len(roundChangeMsgs))
+		for i, m := range roundChangeMsgs {
+			rcCert[i] = m.(*Message)
+		}
+
+		// Determine the value to propose: highest prepared or input
+		highestRound, highestValue := ibft.validator.HighestPrepared(rcCert)
+		var proposalValue core.Value
+		if highestRound != nil {
+			proposalValue = highestValue
+		} else {
+			proposalValue = ibft.state.InputValue
+		}
+
+		prePrepareMsg := &Message{
+			MessageType:     MessageTypePrePrepare,
+			From:            ibft.nodeData.GetNodeId(),
+			Instance:        ibft.state.Instance,
+			Round:           msg.Round,
+			Value:           proposalValue,
+			RoundChangeCert: rcCert,
+		}
+		go func() {
+			if err := ibft.network.Broadcast(ibft.ctx, prePrepareMsg); err != nil {
+				ibft.logger.Error(
+					"error broadcasting PRE-PREPARE:",
+					"nodeId", ibft.nodeData.id,
+					"error", err,
+				)
+			}
+		}()
+	}
 
 	return nil
 }
@@ -315,6 +439,14 @@ func (ibft *Ibft) startMessageHandler(ch <-chan core.Message) {
 			ibftMsg, ok := msg.(*Message)
 			if !ok {
 				ibft.logger.Error("received message of unexpected type", "type", fmt.Sprintf("%T", msg))
+				continue
+			}
+
+			// Filter by instance — ignore messages for other consensus instances.
+			ibft.state.mu.RLock()
+			myInstance := ibft.state.Instance
+			ibft.state.mu.RUnlock()
+			if ibftMsg.Instance != myInstance {
 				continue
 			}
 

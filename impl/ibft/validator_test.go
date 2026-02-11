@@ -9,7 +9,7 @@ import (
 )
 
 func TestValidator(t *testing.T) {
-	config := ibft.NewConfig(5, func(r core.Round) time.Duration {
+	config := ibft.NewConfig([]core.NodeId{"0", "1", "2", "3", "4"}, func(r core.Round) time.Duration {
 		return 0
 	})
 	validator := ibft.NewValidator(config)

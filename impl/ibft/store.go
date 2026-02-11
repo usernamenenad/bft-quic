@@ -29,14 +29,21 @@ func (s *Store) AddMessage(msg core.Message) error {
 
 	key := string(m.Instance) + "-" + fmt.Sprint(m.Round) + "-" + m.MessageType.String()
 
+	// Deduplicate by sender
+	for _, existing := range s.store[key] {
+		if em, ok := existing.(*Message); ok && em.From == m.From {
+			return nil
+		}
+	}
+
 	s.store[key] = append(s.store[key], m)
 
 	return nil
 }
 
 func (s *Store) GetMessagesByKey(key string) ([]core.Message, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	return s.store[key], nil
 }

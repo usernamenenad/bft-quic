@@ -5,24 +5,30 @@ import (
 )
 
 type Node struct {
-	id core.NodeId
+	id         core.NodeId
+	validators []core.NodeId
 }
 
-func NewNode(nodeId core.NodeId) *Node {
+func NewNode(nodeId core.NodeId, validators []core.NodeId) *Node {
 	return &Node{
-		id: nodeId,
+		id:         nodeId,
+		validators: validators,
 	}
 }
 
-func (ibft *Node) GetNodeId() core.NodeId {
-	return ibft.id
+func (n *Node) GetNodeId() core.NodeId {
+	return n.id
 }
 
-func (ibft *Node) IsLeader(instance core.Instance, round core.Round) bool {
-	return ibft.id == ibft.GetLeader(instance)
+func (n *Node) IsLeader(instance core.Instance, round core.Round) bool {
+	return n.id == n.GetLeader(instance, round)
 }
 
-// TODO: mechanism for determining a leader
-func (ibft *Node) GetLeader(instance core.Instance) core.NodeId {
-	return "leader1"
+// GetLeader returns the leader for the given instance and round using round-robin rotation.
+func (n *Node) GetLeader(instance core.Instance, round core.Round) core.NodeId {
+	if len(n.validators) == 0 {
+		return ""
+	}
+	idx := (uint64(round) - 1) % uint64(len(n.validators))
+	return n.validators[idx]
 }

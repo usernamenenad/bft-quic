@@ -16,7 +16,7 @@ type Transport struct {
 
 func NewTransport(numberOfNodes int) *Transport {
 	t := &Transport{}
-	t.ready.Add(5)
+	t.ready.Add(numberOfNodes)
 
 	return t
 }

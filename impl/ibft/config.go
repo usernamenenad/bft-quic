@@ -7,14 +7,16 @@ import (
 )
 
 type Config struct {
-	N       uint64
-	Timeout func(round core.Round) time.Duration
+	N          uint64
+	Validators []core.NodeId
+	Timeout    func(round core.Round) time.Duration
 }
 
-func NewConfig(n uint64, timeout func(core.Round) time.Duration) *Config {
+func NewConfig(validators []core.NodeId, timeout func(core.Round) time.Duration) *Config {
 	return &Config{
-		N:       n,
-		Timeout: timeout,
+		N:          uint64(len(validators)),
+		Validators: validators,
+		Timeout:    timeout,
 	}
 }
 
