@@ -1,0 +1,13 @@
+benchmark,transport,nodes,sample,value_ns
+connection_setup,TCP,4,1,2265701
+connection_setup,TCP,4,2,2104549
+connection_setup,TCP,4,3,1957268
+connection_setup,QUIC,4,1,32634574
+connection_setup,QUIC,4,2,32868170
+connection_setup,QUIC,4,3,30809057
+connection_setup,TCP,7,1,2537503
+connection_setup,TCP,7,2,3015943
+connection_setup,TCP,7,3,2975349
+connection_setup,QUIC,7,1,81785396
+connection_setup,QUIC,7,2,82165071
+connection_setup,QUIC,7,3,83149674
